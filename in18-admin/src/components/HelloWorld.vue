@@ -116,19 +116,19 @@
         <!--</div>-->
         <div class="layout-content"
              style="position:absolute;top:45px;left: 0;right: 0;bottom:0;overflow-y: scroll;margin: 0;background:#f8f8f8;">
-
           <Card>
             <div slot="title">
               <Button type="primary" size="small" @click.native="toJson">生成JSON</Button>
               <Button type="primary" size="small" @click.native="addOne" :disabled="admin=='guest'">新增一条</Button>
-              <Input v-model="keyword" size="small" placeholder="搜索..." style="width: 300px"
-                     @on-change="findData"></Input> <a @click="tips=true">查看提示</a>
+              <Input v-model="keyword" placeholder="搜索..." style="width: 300px"
+                     @on-change="findData"></Input> <a @click="tips=true" style="color: red">查看提示</a>
             </div>
             <a href="#" slot="extra" @click.prevent="changeLimit">
               <Icon type="ios-loop-strong"></Icon>
             </a>
             <div>
-              <Table stripe border size="small" highlight-row ref="currentRowTable" :columns="columns3"
+              <Table :loading="loading" stripe border size="small" highlight-row ref="currentRowTable"
+                     :columns="columns3"
                      :data="data1"></Table>
               <Page :total="count" show-sizer @on-change="onChange" @on-page-size-change="onPageSizeChange"
                     placement="top"></Page>
@@ -138,12 +138,12 @@
           <Modal
             v-model="tips"
             title="提示"
-            @on-cancel="cancel">
+            @on-cancel="cancelTip">
             <Timeline>
               <TimelineItem color="red">1.添加前先搜索是否有想同的词条已存在</TimelineItem>
               <TimelineItem color="red">2.key只支持英文字母开头可包含数字下划线和中划线</TimelineItem>
               <TimelineItem color="red">3.key不能重复</TimelineItem>
-              <TimelineItem color="red">4.%{msg} 为一个变量占位符，指不确定的元素在中英文中不同的位置（搜索邮件查看示例）</TimelineItem>
+              <TimelineItem color="red">4.{msg} 为一个变量占位符，指不确定的元素在中英文中不同的位置（搜索邮件查看示例）</TimelineItem>
               <TimelineItem color="red">5.在不影响理解的情况下，尽量使用最短语句或简写（如 周一：Mo.）</TimelineItem>
               <TimelineItem color="red">6.请勿删除原有数据</TimelineItem>
             </Timeline>
@@ -164,7 +164,7 @@
                   <Input v-model="data1[currentIndex].en" placeholder="请输入"></Input>
                 </FormItem>
                 <FormItem label="简体">
-                  <Input v-model="data1[currentIndex].cn" placeholder="请输入"></Input>
+                  <Input v-model="data1[currentIndex].cn" :disabled="admin=='guest'" placeholder="请输入"></Input>
                 </FormItem>
                 <FormItem label="繁体">
                   <Input v-model="data1[currentIndex].tn" placeholder="请输入"></Input>
@@ -195,7 +195,7 @@
           </div>
         </div>
         <div class="layout-copy">
-          2011-2016 &copy; TalkingData
+          2011-2016 &copy; artiely
         </div>
       </div>
     </Row>
@@ -225,6 +225,7 @@
   export default {
     data () {
       return {
+        loading: false,
         tips: true,
         spanLeft: false,
         spanRight: 19,
@@ -257,7 +258,7 @@
             title: '操作',
             key: 'action',
             fixed: 'right',
-            width: 120,
+            width: 150,
             render: (h, params) => {
               return h('div', [
                 h('Button', {
@@ -283,11 +284,10 @@
                     }
                   }
                 }, [
-                  h('div', {
+                  h('Button', {
                     style: {
                       margin: '0 5px',
-                      color: '#f00',
-                      display: this.admin === 'admin' ? 'block' : 'none'
+                      color: '#f00'
                     },
                     props: {
                       size: 'small',
@@ -331,10 +331,14 @@
                   method: 'get',
                   params: {keyword: this.add.key}
                 }).then(res => {
-                  var key = res.data.data.key
-                  key = key.toLowerCase()
-                  if (value.toLowerCase() === key) {
-                    callback(new Error('已存在相似key'))
+                  if (res.data.data) {
+                    var key = res.data.data.key
+                    key = key.toLowerCase()
+                    if (value.toLowerCase() === key) {
+                      callback(new Error('已存在相似key'))
+                    } else {
+                      callback()
+                    }
                   } else {
                     callback()
                   }
@@ -368,10 +372,19 @@
       } else {
         this.$router.push('/')
       }
+      console.log(window.sessionStorage.tips)
+
+      if (window.sessionStorage.tips === 'false') {
+        this.tips = false
+      }
     },
     methods: {
       ok () {
         this._updateData()
+      },
+      cancelTip () {
+        this.tips = false
+        window.sessionStorage.tips = false
       },
       cancel () {},
       show (index) {
@@ -424,10 +437,12 @@
         })
       },
       _getData () {
+        this.loading = true
         axios({
           url: `/local/${this.page}/${this.limit}`,
           method: 'get'
         }).then(res => {
+          this.loading = false
           this.data1 = res.data.data
           this.count = res.data.count
         })
